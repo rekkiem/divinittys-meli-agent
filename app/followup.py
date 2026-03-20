@@ -12,15 +12,14 @@ Flujo:
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.database import AsyncSessionLocal
-from app.message_templates import build_follow_up_message
 from app.meli_client import MeliAPIError, MeliClient
+from app.message_templates import build_follow_up_message
 from app.models import AgentEvent, OAuthToken, ProcessedOrder, SentMessage
 from app.notifications import Notifier
 
@@ -48,8 +47,6 @@ class FollowUpAgent:
         Retorna resumen de acciones realizadas.
         """
         now = datetime.now(timezone.utc)
-        followup_threshold = now - timedelta(hours=FOLLOWUP_HOURS)
-        escalation_threshold = now - timedelta(hours=ESCALATION_HOURS)
 
         logger.info(f"🔔 Iniciando ciclo de follow-up. Umbral: {FOLLOWUP_HOURS}h")
 
@@ -66,8 +63,8 @@ class FollowUpAgent:
         # Buscar órdenes candidatas: mensaje enviado, sin respuesta del buyer
         candidates_query = select(ProcessedOrder).where(
             and_(
-                ProcessedOrder.message_sent == True,
-                ProcessedOrder.buyer_replied == False,
+                ProcessedOrder.message_sent,
+                ~ProcessedOrder.buyer_replied,
                 ProcessedOrder.status == "message_sent",
             )
         )

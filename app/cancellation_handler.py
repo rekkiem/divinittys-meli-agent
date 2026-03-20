@@ -14,7 +14,6 @@ Este handler se activa:
 """
 
 import logging
-from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -69,7 +68,7 @@ class CancellationHandler:
         # Buscar órdenes donde el agente interactuó pero podrían haberse cancelado
         result = await self.db.execute(
             select(ProcessedOrder).where(
-                ProcessedOrder.message_sent == True,
+                ProcessedOrder.message_sent,
                 ProcessedOrder.status.not_in(["cancelled", "replied"]),
             )
         )

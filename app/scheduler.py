@@ -34,7 +34,9 @@ async def polling_job():
 
             # Obtener seller_id del token guardado
             from sqlalchemy import select
+
             from app.models import OAuthToken
+
             result = await db.execute(select(OAuthToken).where(OAuthToken.id == 1))
             token_row = result.scalar_one_or_none()
 
@@ -60,9 +62,10 @@ async def reply_check_job():
     Actualiza el estado en DB y notifica al vendedor.
     """
     from sqlalchemy import select
+
     from app.agent import PostSaleAgent
     from app.meli_client import MeliClient
-    from app.models import ProcessedOrder, OAuthToken
+    from app.models import OAuthToken, ProcessedOrder
     from app.notifications import Notifier
 
     logger.info("💬 Verificando respuestas de compradores...")
@@ -81,8 +84,8 @@ async def reply_check_job():
             # Buscar órdenes donde se envió mensaje pero no se detectó respuesta aún
             pending = await db.execute(
                 select(ProcessedOrder).where(
-                    ProcessedOrder.message_sent == True,
-                    ProcessedOrder.buyer_replied == False,
+                    ProcessedOrder.message_sent,
+                    ~ProcessedOrder.buyer_replied,
                     ProcessedOrder.status == "message_sent",
                 )
             )

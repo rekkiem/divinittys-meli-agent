@@ -238,7 +238,7 @@ class MeliClient:
     async def send_message(self, pack_id: str, seller_id: str, message_text: str) -> dict:
         """
         Envía un mensaje al comprador por el canal oficial de la orden.
-        
+
         IMPORTANTE (anti-ban): El texto NO debe contener links externos.
         Los datos bancarios van en texto plano dentro del body.
         """
