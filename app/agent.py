@@ -10,6 +10,7 @@ Lógica principal:
   6. Registra todo en DB y notifica al vendedor por Telegram
 """
 
+import inspect
 import logging
 from datetime import datetime, timezone
 
@@ -219,7 +220,10 @@ class PostSaleAgent:
         result = await self.db.execute(
             select(ProcessedOrder).where(ProcessedOrder.order_id == order_id)
         )
-        return result.scalar_one_or_none()
+        existing = result.scalar_one_or_none()
+        if inspect.isawaitable(existing):
+            existing = await existing
+        return existing
 
     async def _upsert_processed_order(
         self,

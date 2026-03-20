@@ -11,6 +11,7 @@ Flujo:
   3. Si pasan ESCALATION_HOURS sin respuesta → alerta urgente al vendedor
 """
 
+import inspect
 import logging
 from datetime import datetime, timezone
 
@@ -194,7 +195,10 @@ class FollowUpAgent:
             .order_by(SentMessage.sent_at.desc())
             .limit(1)
         )
-        return result.scalar_one_or_none()
+        row = result.scalar_one_or_none()
+        if inspect.isawaitable(row):
+            row = await row
+        return row
 
     async def _followup_already_sent(self, order_id: str) -> bool:
         """Verifica si ya se envió un follow-up para esta orden."""
@@ -206,7 +210,10 @@ class FollowUpAgent:
                 )
             )
         )
-        return result.scalar_one_or_none() is not None
+        row = result.scalar_one_or_none()
+        if inspect.isawaitable(row):
+            row = await row
+        return row is not None
 
     async def _log_event(
         self,
