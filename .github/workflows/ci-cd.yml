@@ -1,0 +1,209 @@
+name: CI/CD — Divinittys Meli Agent
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+# ── Permisos mínimos necesarios ───────────────────────────────────────────────
+permissions:
+  contents: read
+  packages: write   # Para push a GitHub Container Registry
+
+# ── Variables globales ────────────────────────────────────────────────────────
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/divinittys-meli-agent
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 1: Tests unitarios
+  # ────────────────────────────────────────────────────────────────────────────
+  test:
+    name: 🧪 Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Instalar dependencias de test
+        run: pip install -r requirements-test.txt
+
+      - name: Crear .env de prueba
+        run: |
+          cat > .env << 'EOF'
+          MELI_CLIENT_ID=test_client_id
+          MELI_CLIENT_SECRET=test_secret
+          MELI_REDIRECT_URI=http://localhost:8000/auth/callback
+          DATABASE_URL=sqlite+aiosqlite:///./test_agent.db
+          ADMIN_PASSWORD=test_password_ci
+          BANK_NAME=Banco Test
+          BANK_ACCOUNT_NUMBER=000000000
+          BANK_RUT=11.111.111-1
+          BANK_OWNER=Test Owner
+          BANK_EMAIL=test@test.com
+          SHIPPING_COST=4000
+          ENVIRONMENT=development
+          EOF
+
+      - name: Ejecutar tests con cobertura
+        run: |
+          pytest tests/ -v \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --cov-fail-under=70
+
+      - name: Subir reporte de cobertura
+        if: github.ref == 'refs/heads/main'
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 2: Lint y validación de código
+  # ────────────────────────────────────────────────────────────────────────────
+  lint:
+    name: 🔍 Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Instalar herramientas de lint
+        run: pip install ruff mypy
+
+      - name: Ruff (linter + formatter check)
+        run: ruff check app/ --select=E,W,F,I --ignore=E501
+
+      - name: Verificar imports no usados
+        run: ruff check app/ --select=F401
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 3: Build de imagen Docker
+  # ────────────────────────────────────────────────────────────────────────────
+  build:
+    name: 🐳 Docker Build
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login a GitHub Container Registry
+        if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extraer metadata de la imagen
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build (y push si es main)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 4: Deploy al VPS (solo en push a main)
+  # ────────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: 🚀 Deploy a Producción
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/main'
+    environment: production   # Requiere aprobación manual en GitHub Environments
+
+    steps:
+      - name: Deploy vía SSH al VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+            echo "🔄 Iniciando deploy de Divinittys Agent..."
+            cd /opt/divinittys-meli-agent
+
+            # Pull de la nueva imagen
+            echo "${{ secrets.GITHUB_TOKEN }}" | \
+              docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker pull ${{ env.IMAGE_NAME }}:latest
+
+            # Backup de la DB SQLite antes del deploy
+            if [ -f data/divinittys_agent.db ]; then
+              cp data/divinittys_agent.db data/divinittys_agent.db.bak
+              echo "✅ Backup de DB creado"
+            fi
+
+            # Reinicio rolling (sin downtime)
+            docker compose pull agente
+            docker compose up -d --no-deps agente
+
+            # Esperar que el health check responda
+            echo "⏳ Esperando health check..."
+            for i in $(seq 1 10); do
+              if curl -sf http://localhost:8000/health > /dev/null; then
+                echo "✅ Deploy exitoso — Agente respondiendo"
+                break
+              fi
+              sleep 3
+            done
+
+            # Ejecutar migraciones de DB pendientes
+            docker compose exec -T agente alembic upgrade head || true
+
+            # Limpiar imágenes antiguas
+            docker image prune -f
+
+            echo "🎉 Deploy completado: $(date)"
+
+      - name: Notificar deploy exitoso
+        if: success()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d "text=🚀 *Deploy exitoso*%0ADivinittys Agent actualizado%0ACommit: ${{ github.sha }}" \
+            -d "parse_mode=Markdown" || true
+
+      - name: Notificar deploy fallido
+        if: failure()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d "text=❌ *Deploy FALLIDO*%0ADivinittys Agent%0ARevisa GitHub Actions" \
+            -d "parse_mode=Markdown" || true

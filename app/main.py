@@ -17,6 +17,8 @@ from app.meli_client import MeliClient
 from app.agent import PostSaleAgent
 from app.scheduler import start_scheduler, stop_scheduler
 from app.admin_panel import router as admin_router
+from app.auth_middleware import setup_admin_auth
+from app.rate_limiter import RateLimiter
 from app.models import Base
 
 logging.basicConfig(
@@ -46,6 +48,7 @@ app = FastAPI(
 )
 
 app.include_router(admin_router)
+setup_admin_auth(app)
 
 
 # ─── Health ───────────────────────────────────────────────────────────────────
@@ -153,7 +156,14 @@ async def meli_webhook(
 async def _process_order_background(order_id: str, db):
     """Tarea background: procesa una orden y envía mensaje si aplica."""
     try:
+        from app.cancellation_handler import CancellationHandler
         client = MeliClient(db=db)
+        # Primero verificar si la orden fue cancelada
+        cancel_handler = CancellationHandler(client=client, db=db)
+        result = await cancel_handler.handle_order_status_change(order_id)
+        if result.get("status") == "cancelled_handled":
+            return  # No procesar orden cancelada
+
         agent = PostSaleAgent(client=client, db=db)
         await agent.process_order(order_id)
     except Exception as e:
@@ -177,3 +187,10 @@ async def token_status(db=Depends(get_db)):
     client = MeliClient(db=db)
     status = await client.get_token_status()
     return status
+
+
+@app.get("/admin/rate-limit-stats", tags=["Admin"])
+async def rate_limit_stats():
+    """Estadísticas del rate limiter contra la API de Mercado Libre."""
+    limiter = RateLimiter()
+    return limiter.get_stats()

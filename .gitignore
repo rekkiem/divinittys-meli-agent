@@ -1,0 +1,61 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+*.whl
+
+# ── Entornos virtuales ────────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+.env.local
+
+# ── CRÍTICO: Nunca subir a Git ────────────────────────────────────────────────
+.env
+*.env
+!.env.example
+
+# ── Base de datos local ───────────────────────────────────────────────────────
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# ── Certificados SSL ──────────────────────────────────────────────────────────
+ssl/
+*.pem
+*.key
+*.crt
+*.p12
+
+# ── Tests y cobertura ─────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+# NO ignorar docker-compose.yml — sí es parte del repo
+# Ignorar archivos de override locales
+docker-compose.override.yml
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/

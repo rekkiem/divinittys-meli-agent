@@ -147,6 +147,29 @@ async def start_scheduler() -> AsyncIOScheduler:
     )
     logger.info("🔔 Follow-up job: cada 1 hora")
 
+    # Job 4: Detección de cancelaciones de órdenes
+    from app.cancellation_handler import CancellationHandler
+
+    async def cancellation_scan_job():
+        async with AsyncSessionLocal() as db:
+            try:
+                from app.meli_client import MeliClient
+                client = MeliClient(db=db)
+                handler = CancellationHandler(client=client, db=db)
+                await handler.scan_active_orders_for_cancellations()
+            except Exception as e:
+                logger.error(f"❌ Error en cancellation_scan_job: {e}", exc_info=True)
+
+    scheduler.add_job(
+        cancellation_scan_job,
+        trigger=IntervalTrigger(minutes=30),
+        id="cancellation_scan_job",
+        name="Escaneo de cancelaciones ML",
+        replace_existing=True,
+        misfire_grace_time=120,
+    )
+    logger.info("🚫 Cancellation scan job: cada 30 minutos")
+
     scheduler.start()
     logger.info("✅ Scheduler iniciado")
     return scheduler

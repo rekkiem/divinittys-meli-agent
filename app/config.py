@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "production"   # "development" | "production"
     DEBUG: bool = False
 
+    # ── Seguridad del panel admin ─────────────────────────────────────────────
+    ADMIN_USERNAME: str = "divinittys"
+    ADMIN_PASSWORD: str = ""           # OBLIGATORIO en producción
+    ADMIN_ALLOWED_IPS: str = ""        # IPs/CIDRs separadas por coma. Vacío = todas
+
     # ── Reintentos ────────────────────────────────────────────────────────────
     MAX_RETRIES: int = 3
     RETRY_DELAY_SECONDS: int = 10
