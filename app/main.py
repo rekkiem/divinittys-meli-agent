@@ -11,14 +11,15 @@ from contextlib import asynccontextmanager
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from app.admin_panel import router as admin_router
-from app.agent import PostSaleAgent
-from app.auth_middleware import setup_admin_auth
 from app.config import settings
-from app.database import get_db, init_db
+from app.database import engine, get_db, init_db
 from app.meli_client import MeliClient
-from app.rate_limiter import RateLimiter
+from app.agent import PostSaleAgent
 from app.scheduler import start_scheduler, stop_scheduler
+from app.admin_panel import router as admin_router
+from app.auth_middleware import setup_admin_auth
+from app.rate_limiter import RateLimiter
+from app.models import Base
 
 logging.basicConfig(
     level=logging.INFO,

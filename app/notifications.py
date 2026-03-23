@@ -3,7 +3,7 @@ notifications.py — Sistema de notificaciones internas al vendedor.
 
 Canal: Telegram Bot (simple, sin dependencias extra).
 El vendedor recibe alertas en su Telegram personal con:
-  - ✅ "Se envió mensaje a comprador X"
+  - ✅ "Se envió mensaje a comprador X"  
   - 💬 "Comprador X respondió con sus datos"
   - ❌ "Error en API de ML"
   - 🔑 "Token OAuth renovado"

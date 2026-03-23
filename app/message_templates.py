@@ -22,11 +22,11 @@ def _format_clp(amount: int) -> str:
 def build_shipping_request_message(order_id: str, buyer_name: str | None = None) -> str:
     """
     Mensaje principal: solicita datos de envío + instrucciones de pago.
-
+    
     Args:
         order_id: ID de la orden (para referencia del comprador)
         buyer_name: Nombre del comprador (opcional, para personalización)
-
+    
     Returns:
         str: Texto del mensaje listo para enviar por la API de ML
     """

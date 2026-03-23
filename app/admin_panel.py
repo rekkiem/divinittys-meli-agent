@@ -17,13 +17,13 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import AgentEvent, OAuthToken, ProcessedOrder
+from app.models import AgentEvent, OAuthToken, ProcessedOrder, SentMessage
 
 logger = logging.getLogger("divinittys.admin")
 
@@ -53,11 +53,11 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
     total = await db.scalar(select(func.count()).select_from(ProcessedOrder))
     sent = await db.scalar(
         select(func.count()).select_from(ProcessedOrder)
-        .where(ProcessedOrder.message_sent)
+        .where(ProcessedOrder.message_sent == True)
     )
     replied = await db.scalar(
         select(func.count()).select_from(ProcessedOrder)
-        .where(ProcessedOrder.buyer_replied)
+        .where(ProcessedOrder.buyer_replied == True)
     )
     errors_count = await db.scalar(
         select(func.count()).select_from(ProcessedOrder)

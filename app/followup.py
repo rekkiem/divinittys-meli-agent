@@ -11,16 +11,16 @@ Flujo:
   3. Si pasan ESCALATION_HOURS sin respuesta → alerta urgente al vendedor
 """
 
-import inspect
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import AsyncSessionLocal
-from app.meli_client import MeliAPIError, MeliClient
 from app.message_templates import build_follow_up_message
+from app.meli_client import MeliAPIError, MeliClient
 from app.models import AgentEvent, OAuthToken, ProcessedOrder, SentMessage
 from app.notifications import Notifier
 
@@ -48,6 +48,8 @@ class FollowUpAgent:
         Retorna resumen de acciones realizadas.
         """
         now = datetime.now(timezone.utc)
+        followup_threshold = now - timedelta(hours=FOLLOWUP_HOURS)
+        escalation_threshold = now - timedelta(hours=ESCALATION_HOURS)
 
         logger.info(f"🔔 Iniciando ciclo de follow-up. Umbral: {FOLLOWUP_HOURS}h")
 
@@ -64,8 +66,8 @@ class FollowUpAgent:
         # Buscar órdenes candidatas: mensaje enviado, sin respuesta del buyer
         candidates_query = select(ProcessedOrder).where(
             and_(
-                ProcessedOrder.message_sent,
-                ~ProcessedOrder.buyer_replied,
+                ProcessedOrder.message_sent == True,
+                ProcessedOrder.buyer_replied == False,
                 ProcessedOrder.status == "message_sent",
             )
         )
@@ -195,10 +197,7 @@ class FollowUpAgent:
             .order_by(SentMessage.sent_at.desc())
             .limit(1)
         )
-        row = result.scalar_one_or_none()
-        if inspect.isawaitable(row):
-            row = await row
-        return row
+        return result.scalar_one_or_none()
 
     async def _followup_already_sent(self, order_id: str) -> bool:
         """Verifica si ya se envió un follow-up para esta orden."""
@@ -210,10 +209,7 @@ class FollowUpAgent:
                 )
             )
         )
-        row = result.scalar_one_or_none()
-        if inspect.isawaitable(row):
-            row = await row
-        return row is not None
+        return result.scalar_one_or_none() is not None
 
     async def _log_event(
         self,

@@ -104,7 +104,7 @@ class RateLimiter:
         if status_code != 429:
             # Request exitoso — resetear contador de 429s consecutivos
             if self._state.consecutive_429s > 0:
-                logger.info("✅ Rate limit superado. Back-off terminado.")
+                logger.info(f"✅ Rate limit superado. Back-off terminado.")
             self._state.consecutive_429s = 0
             return True
 

@@ -10,7 +10,6 @@ Responsabilidades:
   ✅ Lectura del hilo de mensajes de una orden
 """
 
-import inspect
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -119,8 +118,6 @@ class MeliClient:
         """
         result = await self.db.execute(select(OAuthToken).where(OAuthToken.id == 1))
         token_row = result.scalar_one_or_none()
-        if inspect.isawaitable(token_row):
-            token_row = await token_row
 
         if not token_row:
             raise MeliAuthError(
@@ -165,8 +162,6 @@ class MeliClient:
         """Retorna el estado actual del token (para /admin/token-status)."""
         result = await self.db.execute(select(OAuthToken).where(OAuthToken.id == 1))
         token_row = result.scalar_one_or_none()
-        if inspect.isawaitable(token_row):
-            token_row = await token_row
         if not token_row:
             return {"status": "no_token", "message": "Visita /auth/login para autorizar"}
         now = datetime.now(timezone.utc)
@@ -243,7 +238,7 @@ class MeliClient:
     async def send_message(self, pack_id: str, seller_id: str, message_text: str) -> dict:
         """
         Envía un mensaje al comprador por el canal oficial de la orden.
-
+        
         IMPORTANTE (anti-ban): El texto NO debe contener links externos.
         Los datos bancarios van en texto plano dentro del body.
         """

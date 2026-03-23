@@ -10,7 +10,6 @@ Lógica principal:
   6. Registra todo en DB y notifica al vendedor por Telegram
 """
 
-import inspect
 import logging
 from datetime import datetime, timezone
 
@@ -19,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.meli_client import MeliAPIError, MeliAuthError, MeliClient
 from app.message_templates import (
+    build_confirmation_message,
     build_shipping_request_message,
 )
 from app.models import AgentEvent, ProcessedOrder, SentMessage
@@ -43,11 +43,11 @@ class PostSaleAgent:
     async def process_order(self, order_id: str, force: bool = False) -> dict:
         """
         Procesa una orden completa.
-
+        
         Args:
             order_id: ID de la orden de ML
             force: Si True, re-procesa aunque ya esté registrada (para testing)
-
+        
         Returns:
             dict con resultado del procesamiento
         """
@@ -145,6 +145,8 @@ class PostSaleAgent:
         Determina si una orden debe activar el agente.
         Retorna dict con 'proceed' (bool) y 'reason' (str).
         """
+        order_id = order.get("id")
+
         # Solo órdenes pagadas
         if order.get("status") != "paid":
             return {"proceed": False, "reason": f"status={order.get('status')}"}
@@ -220,10 +222,7 @@ class PostSaleAgent:
         result = await self.db.execute(
             select(ProcessedOrder).where(ProcessedOrder.order_id == order_id)
         )
-        existing = result.scalar_one_or_none()
-        if inspect.isawaitable(existing):
-            existing = await existing
-        return existing
+        return result.scalar_one_or_none()
 
     async def _upsert_processed_order(
         self,
